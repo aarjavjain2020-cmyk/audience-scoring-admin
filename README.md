@@ -1,30 +1,31 @@
-# Audience scoring — admin and API
+# Audience scoring — administrator
 
-This repository contains the administrator site and the shared API for the audience voting site. The live site is hosted with Sites. The audience interface is in the separate `audience-scoring-vote` repository.
+The live administrator page and voting API are served by the small Node application in `railway/`. Railway deploys this repository's `Dockerfile` and connects it to a PostgreSQL service. The separate [audience-scoring-vote](https://github.com/aarjavjain2020-cmyk/audience-scoring-vote) repository publishes the phone page on GitHub Pages.
 
 ## Event flow
 
-1. Sign in with the administrator password.
+1. Sign in with the server-configured administrator password.
 2. Enter a performer name. Song numbers start at 1 and advance automatically.
-3. The audience submits one whole-number score from 0 to 20 per device and song.
-4. Confirm **Close voting** to finalize the song. Its total then appears in the public results.
-5. Start the next song.
+3. Audience members submit one whole-number score from 0 through 20 per device and song.
+4. Confirm **Close voting**. The song's total is then published in the results.
+5. Open the next song. **Show best** presents the current top performer.
 
-The results chart sorts performers by total points, highest first. Six muted bar colors repeat as the list grows. Both sites have English and Hindi labels.
-The admin can also select **Show best** to present the current top performer on a clean screen.
+The results chart sorts closed songs by total points, highest first. Six bar colors repeat across the performers. Both pages have English and Hindi labels.
 
-## Runtime configuration
+## Railway configuration
 
-Keep these values in the host's secret/environment settings, never in Git:
+Set these values on the application service, not in Git:
 
-- `ADMIN_PASSWORD` — password for the admin page
-- `SESSION_SECRET` — random secret used to sign admin sessions
+- `DATABASE_URL` — reference to the PostgreSQL service's `DATABASE_URL`
+- `ADMIN_PASSWORD` — administrator password
+- `SESSION_SECRET` — random secret used to sign administrator cookies
 - `VOTE_SECRET` — random secret used to hash device IDs and rate-limit keys
-- `AUDIENCE_ORIGIN` — exact HTTPS origin of the audience site for CORS
-- `DB` — D1 database binding
+- `AUDIENCE_ORIGIN` — `https://aarjavjain2020-cmyk.github.io`
 
-Apply the SQL migrations in `drizzle/` when deploying. The database stores performers, songs, scores, and hashed device IDs. The unique vote index is the server-side duplicate check. Clearing browser storage or switching devices can bypass a device-only rule; it does not establish one vote per person.
+The server creates its tables and indexes on startup. Its `/health` route checks the database connection. The administrator cookie is HTTP only, secure on HTTPS, and restricted to the admin site's origin. The API permits cross-origin requests only from the audience site's origin on public routes.
 
-## Local development
+The unique database index enforces one vote per device ID per song. Clearing browser storage or using another device can still bypass a device-only limit; it does not prove one vote per person.
 
-Use Node.js 22 or newer. Run `npm ci`, `npm run db:generate` after schema edits, and `npm run build`. For a local Worker, configure a D1 binding and ignored `.dev.vars` secrets, apply migrations with Wrangler, then run `npm start`.
+## Local checks
+
+Use Node.js 22 or newer. Run `npm ci` inside `railway/`, then `node --check server.mjs` and `node --check public/app.js`. Set the same environment variables against a PostgreSQL database and run `npm start` to exercise the full flow locally.

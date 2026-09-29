@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f8">
+  <title>Audience scoring · Admin</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topline"><span class="brand" data-i18n="title">Audience scoring</span><div class="top-actions"><button id="language" class="text-button" type="button">हिन्दी</button><button id="sign-out" class="text-button hidden" type="button" data-i18n="signOut">Sign out</button></div></header>
+    <p id="loading" class="loading" data-i18n="loading">Loading…</p>
+    <section id="login-panel" class="login-panel hidden"><p class="eyebrow" data-i18n="admin">Admin</p><h1 data-i18n="signIn">Sign in</h1><form id="login-form"><label for="password" data-i18n="password">Password</label><input id="password" type="password" autocomplete="current-password" required><button id="login-button" class="primary" type="submit" data-i18n="signIn">Sign in</button></form><p id="login-error" class="error" role="alert"></p></section>
+    <div id="dashboard" class="content hidden">
+      <section class="control-panel"><p class="eyebrow" id="section-label" data-i18n="next">Next song</p><h1 id="song-number">Song 1</h1><p id="current-performer" class="performer-name hidden"></p><div id="live-count" class="live-count hidden"><div><strong id="live-votes">0</strong><span data-i18n="votes">votes</span></div><div><strong id="live-points">0</strong><span data-i18n="points">points</span></div></div><button id="close-button" class="primary wide hidden" type="button" data-i18n="close">Close voting</button><div id="start-area"><p class="hint" data-i18n="noSong">Enter the first performer to open voting.</p><form id="start-form"><label for="performer" data-i18n="performer">Performer name</label><input id="performer" maxlength="80" required><button id="start-button" class="primary" type="submit" data-i18n="start">Open voting</button></form></div><p id="action-error" class="error" role="alert"></p></section>
+      <section class="results-panel"><div class="results-heading"><h2 data-i18n="results">Results</h2><div class="results-actions"><span id="result-count">0 / 30</span><button id="best-button" class="text-button hidden" type="button" data-i18n="best">Show best</button></div></div><p id="empty-chart" class="empty-chart" data-i18n="empty">Results will appear here after voting closes.</p><div id="chart-scroll" class="chart-scroll hidden"><svg id="chart" role="img" aria-label="Total points by performer"></svg></div><output id="chart-detail" class="chart-detail" aria-live="polite"></output></section>
+    </div>
+  </main>
+  <dialog id="close-dialog" class="modal"><h2 data-i18n="confirm">Close voting for this song?</h2><p data-i18n="confirmDetail">Scores for this performer will be final and shown in the public results.</p><div class="modal-actions"><button id="cancel-close" class="secondary" type="button" data-i18n="cancel">Cancel</button><button id="confirm-close" class="primary" type="button" data-i18n="yesClose">Yes, close voting</button></div></dialog>
+  <dialog id="winner-dialog" class="modal winner-modal"><h2 data-i18n="leader">Top performer so far</h2><p id="winner-name" class="winner-name"></p><p id="winner-total" class="winner-total"></p><button id="dismiss-winner" class="primary" type="button" data-i18n="dismiss">Close</button></dialog>
+</body>
+</html>
