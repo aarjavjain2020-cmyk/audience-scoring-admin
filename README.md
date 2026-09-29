@@ -11,6 +11,7 @@ This repository contains the administrator site and the shared API for the audie
 5. Start the next song.
 
 The results chart sorts performers by total points, highest first. Six muted bar colors repeat as the list grows. Both sites have English and Hindi labels.
+The admin can also select **Show best** to present the current top performer on a clean screen.
 
 ## Runtime configuration
 
