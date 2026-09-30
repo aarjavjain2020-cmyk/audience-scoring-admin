@@ -1,5 +1,7 @@
 # Audience scoring — administrator
 
+**[Open the administrator site](https://audience-scoring-admin-aj2020.aarjavjain2020.workers.dev)** · **[Open the audience site](https://aarjavjain2020-cmyk.github.io/audience-scoring-vote/)**
+
 The live administrator page and voting API are served by the Cloudflare Worker in `cloudflare/`, with a D1 database. The separate [audience-scoring-vote](https://github.com/aarjavjain2020-cmyk/audience-scoring-vote) repository publishes the phone page on GitHub Pages.
 
 ## Event flow
