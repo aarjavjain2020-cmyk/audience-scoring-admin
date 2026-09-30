@@ -24,6 +24,8 @@ Create a D1 database, put its ID in `wrangler.jsonc`, and apply `cloudflare/sche
 
 `AUDIENCE_ORIGIN` is set to `https://aarjavjain2020-cmyk.github.io` in `wrangler.jsonc`. The administrator cookie is HTTP only, secure on HTTPS, and restricted to the admin site's origin. The API permits cross-origin requests only from the audience site's origin on public routes.
 
+Code deployments are manual: after authenticating Wrangler with a Cloudflare token that can edit Workers Scripts, run `npx wrangler deploy --config wrangler.jsonc`. The deployed Worker retains the Cloudflare-stored administrator secrets. GitHub Pages deploys the separate audience site automatically after changes to its `main` branch.
+
 The unique database index enforces one vote per device ID per song. Clearing browser storage or using another device can still bypass a device-only limit; it does not prove one vote per person.
 
 ## Local checks
