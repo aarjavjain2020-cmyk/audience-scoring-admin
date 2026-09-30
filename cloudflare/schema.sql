@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS songs (
   number INTEGER NOT NULL UNIQUE,
   performer TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  total INTEGER NOT NULL DEFAULT 0,
+  vote_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   closed_at TEXT
 );
@@ -20,3 +22,7 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   count INTEGER NOT NULL DEFAULT 0,
   last_attempt INTEGER NOT NULL
 );
+CREATE TRIGGER IF NOT EXISTS count_vote AFTER INSERT ON votes
+BEGIN
+  UPDATE songs SET total = total + NEW.score, vote_count = vote_count + 1 WHERE id = NEW.song_id;
+END;

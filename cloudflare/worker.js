@@ -38,11 +38,11 @@ async function makeCookie(env) {
 }
 async function state(env, includeLive = false) {
   const open = await env.DB.prepare("SELECT id, number, performer FROM songs WHERE status = 'open' LIMIT 1").first();
-  const results = (await env.DB.prepare("SELECT s.number, s.performer, COALESCE(SUM(v.score), 0) AS total, COUNT(v.id) AS votes FROM songs s LEFT JOIN votes v ON v.song_id = s.id WHERE s.status = 'closed' GROUP BY s.id ORDER BY total DESC, s.number ASC").all()).results;
+  const results = (await env.DB.prepare("SELECT number, performer, total, vote_count AS votes FROM songs WHERE status = 'closed' ORDER BY total DESC, number ASC").all()).results;
   const next = await env.DB.prepare("SELECT COALESCE(MAX(number), 0) + 1 AS next FROM songs").first();
   const data = { open, results, nextNumber: next.next };
   if (includeLive) data.live = open
-    ? await env.DB.prepare("SELECT COALESCE(SUM(score), 0) AS total, COUNT(*) AS votes FROM votes WHERE song_id = ?").bind(open.id).first()
+    ? await env.DB.prepare("SELECT total, vote_count AS votes FROM songs WHERE id = ?").bind(open.id).first()
     : { total: 0, votes: 0 };
   return data;
 }

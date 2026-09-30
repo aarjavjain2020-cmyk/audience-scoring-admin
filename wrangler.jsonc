@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "audience-scoring-admin-aj2020",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-05-22",
+  "assets": {
+    "directory": "./cloudflare/public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "audience-scoring",
+      "database_id": "dc917fbd-bdfd-4e2b-8ee4-b8c925a41acf"
+    }
+  ],
+  "vars": {
+    "AUDIENCE_ORIGIN": "https://aarjavjain2020-cmyk.github.io"
+  }
+}
