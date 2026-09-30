@@ -1,3 +1,4 @@
+import { qualificationPlan } from './competition.js';
 const encoder = new TextEncoder();
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), {
   status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...headers }
@@ -37,10 +38,13 @@ async function makeCookie(env) {
   return `poll_admin=${value}.${await hmac(value, env.SESSION_SECRET)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`;
 }
 async function state(env, includeLive = false) {
-  const open = await env.DB.prepare("SELECT id, number, performer FROM songs WHERE status = 'open' LIMIT 1").first();
-  const results = (await env.DB.prepare("SELECT number, performer, total, vote_count AS votes FROM songs WHERE status = 'closed' ORDER BY total DESC, number ASC").all()).results;
+  const open = await env.DB.prepare("SELECT id, number, performer, day, COALESCE(contestant_id,id) AS contestantId FROM songs WHERE status = 'open' LIMIT 1").first();
+  const results = (await env.DB.prepare("SELECT id, number, performer, day, COALESCE(contestant_id,id) AS contestantId, total, vote_count AS votes FROM songs WHERE status = 'closed' ORDER BY number ASC").all()).results;
   const next = await env.DB.prepare("SELECT COALESCE(MAX(number), 0) + 1 AS next FROM songs").first();
-  const data = { open, results, nextNumber: next.next };
+  const competition = await env.DB.prepare("SELECT day FROM competition WHERE id=1").first();
+  const qualification = await env.DB.prepare("SELECT places, confirmed_at FROM qualification WHERE id=1").first();
+  const finalists = (await env.DB.prepare("SELECT s.id AS contestantId,s.performer,s.number,f.ballot, p.id AS finalSongId,p.status AS finalStatus FROM finalists f JOIN songs s ON s.id=f.audition_id LEFT JOIN songs p ON p.contestant_id=s.id AND p.day=5 ORDER BY s.number").all()).results;
+  const data = { open, results, nextNumber: next.next, competition, qualification, finalists };
   if (includeLive) data.live = open
     ? await env.DB.prepare("SELECT total, vote_count AS votes FROM songs WHERE id = ?").bind(open.id).first()
     : { total: 0, votes: 0 };
@@ -61,16 +65,45 @@ async function login(request, env, password) {
   await env.DB.prepare("DELETE FROM login_attempts WHERE address_hash = ?").bind(addressHash).run();
   return json({ ok: true }, 200, { "Set-Cookie": await makeCookie(env) });
 }
-async function start(env, performer) {
-  if (typeof performer !== "string" || !performer.trim() || performer.trim().length > 80) return fail("Enter a performer name (up to 80 characters).");
+async function start(env, data) {
+  const { performer, day, contestantId } = data;
+  if (!Number.isInteger(day) || day<1 || day>5) return fail("Refresh the page and select the current day.");
+  if (day<5 && (typeof performer !== "string" || !performer.trim() || performer.trim().length > 80)) return fail("Enter a performer name (up to 80 characters).");
+  if (day===5 && !Number.isInteger(contestantId)) return fail("Select a finalist.");
   try {
-    const result = await env.DB.prepare("INSERT INTO songs(number, performer) SELECT (SELECT COALESCE(MAX(number), 0) + 1 FROM songs), ? WHERE NOT EXISTS (SELECT 1 FROM songs WHERE status = 'open')").bind(performer.trim()).run();
-    if (!result.meta.changes) return fail("Close the current song before starting the next one.", 409);
+    const result = day<5
+      ? await env.DB.prepare("INSERT INTO songs(number, performer, day) SELECT (SELECT COALESCE(MAX(number),0)+1 FROM songs), ?, day FROM competition WHERE id=1 AND day=? AND NOT EXISTS(SELECT 1 FROM qualification) AND NOT EXISTS(SELECT 1 FROM songs WHERE status='open')").bind(performer.trim(),day).run()
+      : await env.DB.prepare("INSERT INTO songs(number, performer, day, contestant_id) SELECT (SELECT COALESCE(MAX(number),0)+1 FROM songs),s.performer,5,s.id FROM finalists f JOIN songs s ON s.id=f.audition_id WHERE s.id=? AND (SELECT day FROM competition WHERE id=1)=5 AND NOT EXISTS(SELECT 1 FROM songs WHERE status='open') AND NOT EXISTS(SELECT 1 FROM songs WHERE day=5 AND contestant_id=s.id)").bind(contestantId).run();
+    if (!result.meta.changes) return fail("Cannot open voting. Refresh: the day may have changed, voting is open, or this finalist has already performed.", 409);
     return json(await state(env, true));
   } catch (error) {
     if (String(error).includes("UNIQUE")) return fail("Close the current song before starting the next one.", 409);
     throw error;
   }
+}
+async function advance(env, fromDay) {
+  if (!Number.isInteger(fromDay) || fromDay<1 || fromDay>4) return fail('Invalid day.');
+  const result=await env.DB.prepare("UPDATE competition SET day=day+1 WHERE id=1 AND day=? AND NOT EXISTS(SELECT 1 FROM songs WHERE status='open') AND (day<4 OR EXISTS(SELECT 1 FROM qualification))").bind(fromDay).run();
+  if (!result.meta.changes) return fail('Close voting first. Before Day 5, confirm the finalists. Refresh if the day has changed.',409);
+  return json(await state(env,true));
+}
+async function qualify(env, data) {
+  const snapshot=await state(env,true);
+  if(snapshot.competition.day!==4 || snapshot.open || snapshot.qualification) return fail('Finish Day 4 voting before confirming finalists. A confirmed list cannot be changed.',409);
+  let plan;
+  try { plan=qualificationPlan(snapshot.results.filter(row=>row.day<5),data.places); } catch(error) { return fail(error.message); }
+  const choices=data.ballotIds ?? [];
+  if(!Array.isArray(choices) || new Set(choices).size!==choices.length || choices.some(id=>!Number.isInteger(id))) return fail('Invalid ballot choices.');
+  if(plan.needsBallot && (choices.length!==plan.slots || choices.some(id=>!plan.tied.some(row=>row.id===id)))) return fail(`Record exactly ${plan.slots} ballot winner(s) from the tied contestants.`);
+  if(!plan.needsBallot && choices.length) return fail('No ballot is needed at this cutoff.');
+  const selected=[...plan.above,...(plan.needsBallot?plan.tied.filter(row=>choices.includes(row.id)):plan.tied)];
+  try {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO qualification(id,places,audition_count) VALUES(1,?,?)').bind(plan.places,snapshot.results.filter(row=>row.day<5).length),
+      ...selected.map(row=>env.DB.prepare('INSERT INTO finalists(audition_id,ballot) VALUES(?,?)').bind(row.id,plan.needsBallot && choices.includes(row.id)?1:0))
+    ]);
+  } catch(error) { if(String(error).includes('UNIQUE') || String(error).includes('Close all')) return fail('Competition changed. Refresh before confirming finalists.',409); throw error; }
+  return json(await state(env,true));
 }
 async function close(env, songId) {
   if (!Number.isInteger(songId)) return fail("Invalid song.");
@@ -111,8 +144,10 @@ export default {
         if (path === "/api/admin/login") return login(request, env, data.password);
         if (path === "/api/admin/logout") return json({ ok: true }, 200, { "Set-Cookie": "poll_admin=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0" });
         if (!await isAdmin(request, env)) return fail("Sign in required.", 401);
-        if (path === "/api/admin/start") return start(env, data.performer);
+        if (path === "/api/admin/start") return start(env, data);
         if (path === "/api/admin/close") return close(env, Number(data.songId));
+        if (path === "/api/admin/advance") return advance(env, data.fromDay);
+        if (path === "/api/admin/qualify") return qualify(env, data);
       }
       if (request.method === "GET" && !path.startsWith("/api/")) return env.ASSETS.fetch(request);
       return fail("Not found.", 404);

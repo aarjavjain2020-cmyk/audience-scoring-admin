@@ -7,16 +7,19 @@ The live administrator page and voting API are served by the Cloudflare Worker i
 ## Event flow
 
 1. Sign in with the server-configured administrator password.
-2. Enter a performer name. Song numbers start at 1 and advance automatically.
+2. On Days 1–4, register each performer once. Each audition receives a unique contestant ID; identical names are allowed. Song numbers advance automatically.
 3. Audience members submit one whole-number score from 0 through 20 per device and song.
-4. Confirm **Close voting**. The song's total is then published in the results.
-5. Open the next song. **Show best** presents the current top performer.
+4. Confirm **Close voting**. The closed performance appears in the results. Move to the next day only after closing voting; previous days remain saved.
+5. After Day 4, choose 10 or 15 finalists. Rankings combine all four audition days using exact average scores, not rounded display values. If the cutoff is tied, record the organisers' ballot winners from the tied group. Confirming the list locks auditions and finalist selection.
+6. Move to Day 5. Select each finalist by ID/name and open a new performance. Final scores start at zero, and the audience can vote again. Each finalist performs once. Audition history remains available.
 
-The results chart sorts closed songs by total points, highest first. Six bar colors repeat across the performers. Both pages have English and Hindi labels.
+Charts default to average points out of 20, highest first. Each page has its own day filter and subtle total-points toggle; these preferences are never sent to the API. The separate table always shows averages and vote counts. Six colors repeat by contestant ID, and score labels stay above the animated bars. Both pages have English and Hindi labels. The admin can export the selected results group as CSV.
+
+No minimum vote count applies. A performance with no votes has no average (shown as a dash) and cannot be ranked. Register each real person only once; the app cannot infer identity from a name. Matching names receive distinct IDs. Day advancement and finalist confirmation require confirmation and cannot be undone through the UI.
 
 ## Cloudflare configuration
 
-Create a D1 database, put its ID in `wrangler.jsonc`, and apply `cloudflare/schema.sql`. Set these secrets on the Worker, not in Git:
+Create a D1 database, put its ID in `wrangler.jsonc`, apply `cloudflare/schema.sql`, then apply `cloudflare/migrate_competition.sql` exactly once. On an existing pre-competition database, only apply the competition migration; it preserves existing performances as Day 1 auditions. Back up the database before migrating. Set these secrets on the Worker, not in Git:
 
 - `ADMIN_PASSWORD` — administrator password
 - `SESSION_SECRET` — random secret used to sign administrator cookies
@@ -30,4 +33,6 @@ The unique database index enforces one vote per device ID per song. Clearing bro
 
 ## Local checks
 
-Run `npx wrangler d1 execute audience-scoring --local --file cloudflare/schema.sql` and `npx wrangler dev --config wrangler.jsonc --local`. A local `.dev.vars` file supplies throwaway testing secrets. Do not commit it.
+Run `node cloudflare/competition.test.mjs` with Node 24 to test the actual Worker handlers against an isolated SQLite database. It covers migration preservation, days, identity, qualification, ballots, voting restrictions, and fresh final scores.
+
+For Wrangler local development, apply both SQL files to a fresh local database with `--config wrangler.jsonc --local`, then run `npx wrangler dev --config wrangler.jsonc --local`. A local `.dev.vars` file supplies throwaway testing secrets. Do not commit it.
